@@ -22,23 +22,23 @@ UKF::UKF() {
 
   // initial covariance matrix
   P_ = MatrixXd(5, 5);
-  /*P_ << 1, 0, 0, 0, 0,
+  P_ << 1, 0, 0, 0, 0,
 	    0, 1, 0, 0, 0,
-	    0, 0, 1000, 0, 0,
-	    0, 0, 0, 1000, 0,
-        0, 0, 0, 0, 1000;*/
-  P_ <<    0.0043,   -0.0013,    0.0030,   -0.0022,   -0.0020,
+	    0, 0, 5, 0, 0,
+	    0, 0, 0, 5, 0,
+        0, 0, 0, 0, 5;
+  /*P_ <<    0.0043,   -0.0013,    0.0030,   -0.0022,   -0.0020,
           -0.0013,    0.0077,    0.0011,    0.0071,    0.0060,
            0.0030,    0.0011,    0.0054,    0.0007,    0.0008,
           -0.0022,    0.0071,    0.0007,    0.0098,    0.0100,
           -0.0020,    0.0060,    0.0008,    0.0100,    0.0123;
-
+   */
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 0.2; //30
+  std_a_ = 0.4; //30
   var_a_  = std_a_*std_a_;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
-  std_yawdd_ = 0.2; //30
+  std_yawdd_ = 0.4; //30
   var_yawdd_ = std_yawdd_*std_yawdd_; //30
 
   // Laser measurement noise standard deviation position1 in m
@@ -129,7 +129,7 @@ void UKF::ProcessMeasurement(MeasurementPackage measurement_pack) {
 	//Initialize vx and vy to 4 and 2 for lidar data based on testing to improve RMSE.  Note: This would not work well if 
 	//using a different data set.
 	//px, py, v, phi, phidot
-    x_ << 1, 1, 4, 0, 0; 
+    x_ << 1, 1, 1, 0, 0; 
 	
 
 
@@ -139,12 +139,21 @@ void UKF::ProcessMeasurement(MeasurementPackage measurement_pack) {
       */
       float rho = measurement_pack.raw_measurements_[0];
 	  float theta = measurement_pack.raw_measurements_[1];
-	  
-	  x_[0] = rho * cos( theta ); //px
-	  x_[1] = rho * sin( theta);  //py
+
+	  double px = rho * cos( theta ); 
+	  double py = rho * sin( theta );
+
+	  if( fabs(px) < 0.001 && fabs(py) < 0.001 ) {
+		px = 0.001;
+		py = 0.001;
+		
+	  }
+
+	  x_[0] = px;
+	  x_[1] = py;
 	  //Initialize vx and vy to -5 and 0 for radar data based on testing to improve RMSE for dataset 2.  Note: This would not work well if 
 	  //using a different data.
-	  x_[2] = -5.0; //v
+	  x_[2] = 0; //v
 	  x_[3] = 0; //phi
 	  x_[4] = 0; //phidot 
 	   
@@ -153,10 +162,18 @@ void UKF::ProcessMeasurement(MeasurementPackage measurement_pack) {
       /**
       Initialize state.
       */
+		double px = measurement_pack.raw_measurements_[0];
+		double py = measurement_pack.raw_measurements_[1];
+
+		if( fabs(px) < 0.001 && fabs(py) < 0.001 ) {
+			px = 0.001;
+			py = 0.001;
+		}
+
 		//set the state with the initial location. Initial velocity for lidar was set above
-        x_[0] = measurement_pack.raw_measurements_[0];
-		x_[1] = measurement_pack.raw_measurements_[1];
-		x_[2] = 5; //v
+        x_[0] = px;
+		x_[1] = py;
+		x_[2] = 0; //v
 	    x_[3] = 0; //phi
 	    x_[4] = 0; //phidot 
 		
@@ -177,6 +194,14 @@ void UKF::ProcessMeasurement(MeasurementPackage measurement_pack) {
   //compute the time elapsed between the current and previous measurements
   float dt = (measurement_pack.timestamp_ - time_us_) / 1000000.0;	//dt - expressed in seconds
   time_us_ = measurement_pack.timestamp_;
+
+  
+  while (dt > 0.5)   
+  {
+      double step = 0.1;   
+      Prediction(step);
+      dt -= step;
+  }
 
   Prediction(dt);
 
